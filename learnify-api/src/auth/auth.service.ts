@@ -1,6 +1,6 @@
 // src/auth/auth.service.ts
 import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 import { signJwt } from './jwt.strategy';
 
 const prisma = new PrismaClient();
