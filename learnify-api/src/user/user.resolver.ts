@@ -7,10 +7,6 @@ import { User } from './user.entity';
 export class UserResolver {
   constructor(private userService: UserService) {}
 
-  @Mutation(() => User)
-  async register(@Args('data') data: CreateUserInput) {
-    return this.userService.create(data);
-  }
   @Query(() => String)
   hello() {
     return 'Hello from Learnify!';
