@@ -1,4 +1,3 @@
-// src/auth/jwt.ts
 import jwt from 'jsonwebtoken'; 
 const JWT_SECRET: jwt.Secret = process.env.JWT_SECRET || 'supersecret';
 
