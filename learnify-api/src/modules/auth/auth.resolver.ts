@@ -1,9 +1,10 @@
-import { Resolver, Mutation, Args } from '@nestjs/graphql';
+import { Resolver, Mutation, Args, Query } from '@nestjs/graphql';
 import { AuthService } from './auth.service';
 import { RegisterInput } from './dto/register.input';
+import { User } from '../user/user.entity'
 import { AuthPayload } from './dto/auth-payload.model';
 
-@Resolver()
+@Resolver(() => User)
 export class AuthResolver {
   constructor(private readonly authService: AuthService) {}
 
@@ -11,8 +12,9 @@ export class AuthResolver {
   async register(@Args('data') data: RegisterInput) {
     return this.authService.register(data);
   }
-  // @Mutation(() => AuthResponse)
-  // register(@Args('data') data: RegisterInput) {
-  //   return this.authService.register(data);
-  // }
+  @Query(() => String)
+  hello() {
+    return 'Hello from Learnify!';
+  }
+  
 }

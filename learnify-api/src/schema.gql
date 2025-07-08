@@ -21,6 +21,8 @@ type AuthPayload {
 }
 
 type Query {
+  me: User!
+  hello: String!
   PostPing: String!
 }
 
@@ -31,5 +33,5 @@ type Mutation {
 input RegisterInput {
   email: String!
   password: String!
-  name: String!
+  name: String
 }

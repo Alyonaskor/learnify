@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../common/prisma.service';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { User } from '@prisma/client'; 
 
 
 @Injectable()
 export class UserService {
   constructor(private prisma: PrismaService) {}
 
-  async findByEmail(email: string) {
+  async findByEmail(email: string): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { email } });
   }
    /*
@@ -14,7 +15,7 @@ export class UserService {
    If you need "Not found" - you can throw an exception manually,
    but for now we will return null if not found.
    */
-   async findById(id: string) {
+   async findById(id: string): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { id } });
     /* or:
     return this.prisma.user.findUniqueOrThrow({ where: { id } });

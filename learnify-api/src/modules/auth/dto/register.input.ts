@@ -12,6 +12,6 @@ export class RegisterInput {
   password: string;
 
   // if needed
-   @Field()
-   name: string;
+   @Field({ nullable: true }) 
+   name?: string;
 }

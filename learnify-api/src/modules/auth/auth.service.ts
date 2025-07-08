@@ -28,13 +28,10 @@ export class AuthService {
     });
 
     const token = signJwt({ userId: user.id });
-
+    // console.log('🧪 Created user:', user);
     return {
       token,
-      user: {
-        id: user.id,
-        email: user.email,
-      },
+      user
     };
   }
 }

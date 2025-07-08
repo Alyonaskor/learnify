@@ -1,12 +1,14 @@
 
-import { ObjectType, Field, ID } from '@nestjs/graphql';
+import { Global, Module } from '@nestjs/common';
+import { PrismaModule } from '../../../prisma/prisma.module';
+import { UserResolver } from './user.resolver';
+import { UserService } from './user.service';
 
-@ObjectType()               // имя «User» попадёт в схему
-export class User {
-  @Field(() => ID) id: number;
-  @Field() email: string;
-  @Field({ nullable: true }) name?: string;
-  @Field() createdAt: Date;
-  @Field() updatedAt: Date;
-}
+
+@Global()  
+@Module({
+  imports: [PrismaModule],
+  providers: [UserResolver, UserService],
+  exports: [UserService],
+})
 export class UserModule {}
