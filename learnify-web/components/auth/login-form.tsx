@@ -31,8 +31,8 @@ export function LoginForm() {
 
   const [loginMutation] = useMutation<LoginMutationResponse>(LOGIN_MUTATION, {
     onCompleted: (data) => {
-      const { user, accessToken } = data.login
-      login(user, accessToken)
+      const { user, token } = data.login
+      login(user, token)
       router.push("/dashboard")
     },
     onError: (error) => {
@@ -46,7 +46,7 @@ export function LoginForm() {
     try {
       await loginMutation({
         variables: {
-          input: {
+          data: {
             email: data.email,
             password: data.password,
           },

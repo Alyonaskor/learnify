@@ -3,11 +3,11 @@ import { setContext } from "@apollo/client/link/context"
 import { onError } from "@apollo/client/link/error"
 
 const httpLink = createHttpLink({
-  uri: "https://api.learnify.dev/graphql",
-})
-
+  uri: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/graphql",
+  credentials: "include",          // if you send cookies
+});
 const authLink = setContext((_, { headers }) => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
 
   return {
     headers: {
@@ -29,7 +29,7 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) 
 
     // Handle 401 errors by clearing auth state
     if ("statusCode" in networkError && networkError.statusCode === 401) {
-      localStorage.removeItem("accessToken")
+      localStorage.removeItem("token")
       window.location.href = "/login"
     }
   }

@@ -26,13 +26,13 @@ export function RegisterForm() {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<RegisterFormData>({
-    resolver: zodResolver(registerSchema),
+     resolver: zodResolver(registerSchema),
   })
 
   const [registerMutation] = useMutation<RegisterMutationResponse>(REGISTER_MUTATION, {
     onCompleted: (data) => {
-      const { user, accessToken } = data.register
-      login(user, accessToken)
+      const { user, token } = data.register
+      login(user, token)
       router.push("/dashboard")
     },
     onError: (error) => {
@@ -41,13 +41,14 @@ export function RegisterForm() {
   })
 
   const onSubmit = async (data: RegisterFormData) => {
+    
     setServerError("")
 
     try {
       await registerMutation({
         variables: {
-          input: {
-            fullName: data.fullName,
+          data: {
+            name: data.name,
             email: data.email,
             password: data.password,
           },
@@ -67,13 +68,13 @@ export function RegisterForm() {
       )}
 
       <FormField
-        id="fullName"
+        id="name"
         label="Full Name"
         type="text"
         autoComplete="name"
         required
-        error={errors.fullName}
-        {...register("fullName")}
+        error={errors.name}
+        {...register("name")}
       />
 
       <FormField

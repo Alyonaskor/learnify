@@ -5,7 +5,7 @@ import { createContext, useContext, useReducer, useEffect } from "react"
 import type { User, AuthState } from "@/types/auth"
 
 interface AuthContextType extends AuthState {
-  login: (user: User, accessToken: string) => void
+  login: (user: User, token: string) => void
   logout: () => void
   setLoading: (loading: boolean) => void
 }
@@ -13,10 +13,10 @@ interface AuthContextType extends AuthState {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 type AuthAction =
-  | { type: "LOGIN"; payload: { user: User; accessToken: string } }
+  | { type: "LOGIN"; payload: { user: User; token: string } }
   | { type: "LOGOUT" }
   | { type: "SET_LOADING"; payload: boolean }
-  | { type: "INITIALIZE"; payload: { user: User | null; accessToken: string | null } }
+  | { type: "INITIALIZE"; payload: { user: User | null; token: string | null } }
 
 const authReducer = (state: AuthState, action: AuthAction): AuthState => {
   switch (action.type) {
@@ -24,14 +24,14 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
       return {
         ...state,
         user: action.payload.user,
-        accessToken: action.payload.accessToken,
+        token: action.payload.token,
         isAuthenticated: true,
         isLoading: false,
       }
     case "LOGOUT":
       return {
         user: null,
-        accessToken: null,
+        token: null,
         isAuthenticated: false,
         isLoading: false,
       }
@@ -44,8 +44,8 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
       return {
         ...state,
         user: action.payload.user,
-        accessToken: action.payload.accessToken,
-        isAuthenticated: !!action.payload.accessToken,
+        token: action.payload.token,
+        isAuthenticated: !!action.payload.token,
         isLoading: false,
       }
     default:
@@ -55,7 +55,7 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
 
 const initialState: AuthState = {
   user: null,
-  accessToken: null,
+  token: null,
   isAuthenticated: false,
   isLoading: true,
 }
@@ -69,7 +69,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     // Initialize auth state from localStorage
-    const accessToken = localStorage.getItem("accessToken")
+    const token = localStorage.getItem("token")
     const userStr = localStorage.getItem("user")
 
     let user: User | null = null
@@ -82,17 +82,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     }
 
-    dispatch({ type: "INITIALIZE", payload: { user, accessToken } })
+    dispatch({ type: "INITIALIZE", payload: { user, token } })
   }, [])
 
-  const login = (user: User, accessToken: string) => {
-    localStorage.setItem("accessToken", accessToken)
+  const login = (user: User, token: string) => {
+    localStorage.setItem("token", token)
     localStorage.setItem("user", JSON.stringify(user))
-    dispatch({ type: "LOGIN", payload: { user, accessToken } })
+    dispatch({ type: "LOGIN", payload: { user, token } })
   }
 
   const logout = () => {
-    localStorage.removeItem("accessToken")
+    localStorage.removeItem("token")
     localStorage.removeItem("user")
     dispatch({ type: "LOGOUT" })
   }

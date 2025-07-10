@@ -24,7 +24,7 @@ export default function DashboardPage() {
               <p className="text-sm text-gray-600">Dashboard</p>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-700">Welcome, {user?.fullName}</span>
+              <span className="text-sm text-gray-700">Welcome, {user?.name}</span>
               <Button variant="outline" onClick={handleLogout}>
                 Sign Out
               </Button>
@@ -55,7 +55,7 @@ export default function DashboardPage() {
             <CardContent className="space-y-2">
               <div>
                 <span className="text-sm font-medium">Name:</span>
-                <span className="text-sm text-gray-600 ml-2">{user?.fullName}</span>
+                <span className="text-sm text-gray-600 ml-2">{user?.name}</span>
               </div>
               <div>
                 <span className="text-sm font-medium">Email:</span>
