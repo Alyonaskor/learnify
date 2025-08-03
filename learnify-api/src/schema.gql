@@ -27,11 +27,5 @@ type Query {
 }
 
 type Mutation {
-  register(data: RegisterInput!): AuthPayload!
-}
-
-input RegisterInput {
-  email: String!
-  password: String!
-  name: String
+  register(email: String!, password: String!, name: String!): AuthPayload!
 }

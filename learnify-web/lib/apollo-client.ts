@@ -20,9 +20,15 @@ const authLink = setContext((_, { headers }) => {
 const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) => {
   if (graphQLErrors) {
     graphQLErrors.forEach(({ message, locations, path }) => {
-      console.error(`[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`)
+      console.error(`[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`,
+      graphQLErrors)
     })
   }
+  if (networkError) {
+    // @ts-ignore
+    console.error('[Network error]', networkError.result || networkError);
+  }
+  
 
   if (networkError) {
     console.error(`[Network error]: ${networkError}`)
@@ -37,6 +43,7 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) 
 
 export const apolloClient = new ApolloClient({
   link: from([errorLink, authLink, httpLink]),
+  uri: 'http://localhost:3001/graphql',
   cache: new InMemoryCache(),
   defaultOptions: {
     watchQuery: {
