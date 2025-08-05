@@ -22,10 +22,15 @@ type AuthPayload {
 
 type Query {
   me: User!
-  hello: String!
   PostPing: String!
 }
 
 type Mutation {
-  register(email: String!, password: String!, name: String!): AuthPayload!
+  register(data: RegisterInput!): AuthPayload!
+}
+
+input RegisterInput {
+  email: String!
+  password: String!
+  name: String
 }

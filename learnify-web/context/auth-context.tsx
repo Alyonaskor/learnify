@@ -86,13 +86,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [])
 
   const login = (user: User, token: string) => {
-    localStorage.setItem("token", token)
     localStorage.setItem("user", JSON.stringify(user))
     dispatch({ type: "LOGIN", payload: { user, token } })
   }
 
   const logout = () => {
-    localStorage.removeItem("token")
     localStorage.removeItem("user")
     dispatch({ type: "LOGOUT" })
   }

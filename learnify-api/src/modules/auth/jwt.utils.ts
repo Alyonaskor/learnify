@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken'; 
-const JWT_SECRET: jwt.Secret = process.env.JWT_SECRET || 'supersecret';
+const JWT_SECRET: jwt.Secret = process.env.JWT_SECRET!;
 
 export function signJwt(
   payload: string | jwt.JwtPayload,

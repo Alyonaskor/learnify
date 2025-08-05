@@ -13,6 +13,7 @@ import { PostModule } from './modules/post/post.module';
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
+      context: ({ req, res }) => ({ req, res }),// <-- нужно для res.cookie() в AuthResolver
     }),
     UserModule,
     AuthModule,
