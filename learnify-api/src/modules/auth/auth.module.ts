@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthResolver } from './auth.resolver';
-import { PrismaModule } from '../../../prisma/prisma.module';
+import { PrismaModule } from '@prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { JwtStrategy } from './jwt.strategy';
-import { UserService } from '../user/user.service';
-import { GqlAuthGuard } from './gql-auth.guard';
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { UserService } from '@/modules/user/user.service';
+import { GqlAuthGuard } from '@/common/guards/gql-auth.guard';
 
 
 @Module({
