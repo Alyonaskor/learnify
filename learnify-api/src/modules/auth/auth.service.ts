@@ -2,13 +2,13 @@ import {
   Injectable,
   ConflictException,
   InternalServerErrorException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import * as argon2 from 'argon2';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from '@prisma/prisma.service';
 import { RegisterInput } from './dto/register.input';
 import { JwtService } from '@nestjs/jwt';
+import { Response } from 'express';
 
 
 @Injectable()
@@ -30,7 +30,7 @@ export class AuthService {
     });
   }
 
-  async register(data: RegisterInput) {
+  async register(data: RegisterInput, res: Response) {
     const { email, password, name } = data;
     const normalizedEmail = email.trim().toLowerCase(); // Normalize email
     /* because anyone can query your GraphQL directly: curl -X POST http://api/graphql -H 'content-type: application/json' \
@@ -45,7 +45,13 @@ export class AuthService {
       });
       const payload = { id: user.id, email: user.email };
       const token = this.jwtService.sign(payload);
-  
+    // Устанавливаем токен в cookie
+    res.cookie('access_token', token, {
+      httpOnly: true, // Нельзя получить через JavaScript document.cookie, защита от XSS
+      secure: process.env.NODE_ENV === 'production', // Только по HTTPS в продакшн
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 1000 * 60 * 60 * 24 * 7, // Токен действует 7 дней
+    });
       return { token, user };
     } catch (e) {
       // uniqueness race
