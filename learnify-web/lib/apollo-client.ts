@@ -45,6 +45,7 @@ export const apolloClient = new ApolloClient({
   link: from([errorLink, authLink, httpLink]),
   uri: 'http://localhost:3001/graphql',
   cache: new InMemoryCache(),
+  credentials: 'include', // куки с токенами не будут уходить на сервер 
   defaultOptions: {
     watchQuery: {
       errorPolicy: "all",

@@ -6,6 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
+    "fix:prisma-dev": "rm -rf node_modules dist pnpm-lock.yaml && pnpm install && pnpx prisma generate",
     "postinstall": "prisma generate",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",

@@ -7,6 +7,7 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { UserService } from '@/modules/user/user.service';
 import { GqlAuthGuard } from '@/common/guards/gql-auth.guard';
+import { TokenService } from './token.service';
 
 
 @Module({
@@ -14,10 +15,10 @@ import { GqlAuthGuard } from '@/common/guards/gql-auth.guard';
     PrismaModule, 
     PassportModule,
     JwtModule.register({
-    secret: process.env.JWT_SECRET ?? 'dev-secret',
+    secret: process.env.JWT_ACCESS_SECRET ?? 'dev-secret',
     signOptions: { expiresIn: '1h' },
   }), ],
-  providers: [AuthService, AuthResolver, JwtModule, JwtStrategy, GqlAuthGuard, UserService],
+  providers: [AuthService, AuthResolver, JwtModule, JwtStrategy, GqlAuthGuard, UserService, TokenService],
   exports: [GqlAuthGuard],
 })
 export class AuthModule {}
