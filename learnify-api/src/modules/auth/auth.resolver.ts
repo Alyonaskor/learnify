@@ -1,12 +1,12 @@
 import { Resolver, Mutation, Args, Query, Context } from '@nestjs/graphql';
-import { AuthService } from './auth.service';
+import { AuthService } from '@/modules/auth/auth.service';
 import { RegisterInput } from './dto/register.input';
-import { User } from '../user/user.entity';
+import { User } from '@/modules/user/user.entity';
 import { AuthPayload } from './dto/auth-payload.model';
-import { Response } from 'express';
-import { GqlAuthGuard } from './gql-auth.guard';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UserService } from '../user/user.service';
+import { Response as ExpressResponse } from 'express';
+import { GqlAuthGuard } from  '@/common/guards/gql-auth.guard';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import { UserService } from '@/modules/user/user.service';
 import { UseGuards } from '@nestjs/common';
 
 @Resolver(() => User)
@@ -24,16 +24,8 @@ export class AuthResolver {
   @Mutation(() => AuthPayload)
   async register(
     @Args('data') data: RegisterInput,
-    @Context('res') res: Response, // для установки cookie
+    @Context('res')  res: unknown, // для установки cookie
   ) {
-    const { token, user } = await this.authService.register(data)
-    // Устанавливаем токен в cookie
-    res.cookie('access_token', token, {
-      httpOnly: true, // Нельзя получить через JavaScript
-      secure: process.env.NODE_ENV === 'production', // Только по HTTPS в продакшн
-      sameSite: 'lax', // Защита от CSRF атак
-      maxAge: 1000 * 60 * 60 * 24 * 7, // Токен действует 7 дней
-    });
-    return { token, user };
+    return this.authService.register(data, res as ExpressResponse);
   }
 }
