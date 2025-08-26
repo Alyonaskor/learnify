@@ -1,51 +1,42 @@
-import { ApolloClient, InMemoryCache, createHttpLink, from } from "@apollo/client"
-import { setContext } from "@apollo/client/link/context"
-import { onError } from "@apollo/client/link/error"
+// apollo-client.ts
+import {
+  ApolloClient,
+  InMemoryCache,
+  createHttpLink,
+  from,
 
+} from "@apollo/client";
+import { onError } from "@apollo/client/link/error";
+
+
+
+// HTTP линк — указывает, куда отправлять GraphQL-запросы
 const httpLink = createHttpLink({
   uri: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/graphql",
-  credentials: "include",          // if you send cookies
+  credentials: "include", // важно для отправки httpOnly cookie
 });
-const authLink = setContext((_, { headers }) => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
 
-  return {
-    headers: {
-      ...headers,
-      authorization: token ? `Bearer ${token}` : "",
-    },
-  }
-})
-
-const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) => {
+// Обработка ошибок GraphQL и сети
+const errorLink = onError(
+  ({ graphQLErrors, networkError}) => {
+    // Лог ошибок
   if (graphQLErrors) {
-    graphQLErrors.forEach(({ message, locations, path }) => {
-      console.error(`[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`,
-      graphQLErrors)
-    })
-  }
-  if (networkError) {
-    // @ts-ignore
-    console.error('[Network error]', networkError.result || networkError);
-  }
-  
-
-  if (networkError) {
-    console.error(`[Network error]: ${networkError}`)
-
-    // Handle 401 errors by clearing auth state
-    if ("statusCode" in networkError && networkError.statusCode === 401) {
-      localStorage.removeItem("token")
-      window.location.href = "/login"
+      graphQLErrors.forEach((err) => {
+        console.error(
+          `[GraphQL error]: Message: ${err.message}, Path: ${err.path}`
+        );
+      });
     }
-  }
-})
 
+    if (networkError) {
+      console.error("[Network error]", networkError);
+    }
+  });
+
+// Объединяем все линкы
 export const apolloClient = new ApolloClient({
-  link: from([errorLink, authLink, httpLink]),
-  uri: 'http://localhost:3001/graphql',
+  link: from([errorLink, httpLink]),
   cache: new InMemoryCache(),
-  credentials: 'include', // куки с токенами не будут уходить на сервер 
   defaultOptions: {
     watchQuery: {
       errorPolicy: "all",
@@ -54,4 +45,4 @@ export const apolloClient = new ApolloClient({
       errorPolicy: "all",
     },
   },
-})
+});

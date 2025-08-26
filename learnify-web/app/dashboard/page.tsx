@@ -4,10 +4,18 @@ import { useAuth } from "@/context/auth-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
+import { useQuery } from "@apollo/client"
+import { ME_QUERY } from "@/lib/graphql/me-query"
+
 
 export default function DashboardPage() {
   const { user, logout } = useAuth()
   const router = useRouter()
+  const { data, loading, error } = useQuery(ME_QUERY);
+  if (loading) return <p>Loading...</p>;
+  if (error) return <p>Error: {error.message}</p>;
+
+  
 
   const handleLogout = () => {
     logout()
@@ -34,6 +42,10 @@ export default function DashboardPage() {
       </header>
 
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+      <div>
+      <h1>Me</h1>
+      <pre>{JSON.stringify(data, null, 2)}</pre>
+    </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <Card>
             <CardHeader>
