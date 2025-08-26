@@ -34,6 +34,7 @@ export class AuthService {
     });
   }
 
+  /*REGISTER*/
   async register(data: RegisterInput, res: Response) {
     const { email, password, name } = data;
     const normalizedEmail = email.trim().toLowerCase(); // Normalize email
@@ -45,33 +46,43 @@ export class AuthService {
       // Check if user already exists
       const user = await this.prisma.user.create({
         data: { email: normalizedEmail, password: hashed, name },
-        select: { id: true, email: true, name: true, createdAt: true },
+        select: { id: true, email: true, name: true, createdAt: true, updatedAt: true },
       });
-      const { accessToken } = await this.tokenService.generateTokens(user.id);
+      const { accessToken, refreshToken } = 
+      await this.tokenService.generateTokens(user.id);
+       // сохраняем refresh в БД
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { refreshToken },
+    });
       // Устанавливаем токен в cookie
+      const isProd = process.env.NODE_ENV === 'production';
       res.cookie('access_token', accessToken, {
-        httpOnly: true, // Нельзя получить через JavaScript document.cookie, защита от XSS
-        secure: process.env.NODE_ENV === 'production', // Только по HTTPS в продакшн
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-        maxAge: 1000 * 60 * 60 * 24 * 7, // Токен действует 7 дней
+        httpOnly: true,
+        secure: isProd,
+        sameSite: isProd ? 'none' : 'lax',
+        maxAge: 1000 * 60 * 15,
       });
-      return { 
-        accessToken, 
-        user 
-      };
+      res.cookie('refresh_token', refreshToken, {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: isProd ? 'none' : 'lax',
+        maxAge: 1000 * 60 * 60 * 24 * 30,
+      });
+      return { accessToken, refreshToken, user };
     } catch (e) {
       // uniqueness race
       if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        e.code === 'P2002'
-      ) {
+        e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         throw new ConflictException('A user with this email already exists');
       }
       throw new InternalServerErrorException('Failed to register user');
     }
   }
-  async login(input: LoginInput, res: any) {
-    const user = await this.usersService.findByEmail(input.email);
+
+  /*LOGIN*/
+  async login(input: LoginInput, res: Response) {
+    const user = await this.usersService.findByEmailForAuth(input.email);
     if (!user) throw new UnauthorizedException('Неверный логин или пароль');
 
     const valid = await argon2.verify(user.password, input.password);
@@ -87,24 +98,102 @@ export class AuthService {
     });
 
     // Устанавливаем httpOnly куки
+    const isProd = process.env.NODE_ENV === 'production';
+  res.cookie('access_token', accessToken, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    maxAge: 1000 * 60 * 15,
+  });
+  res.cookie('refresh_token', refreshToken, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    maxAge: 1000 * 60 * 60 * 24 * 30,
+  });
+
+    const safeUser = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+
+    return { accessToken, refreshToken, user: safeUser};
+  }
+
+  /*REFRESH*/
+  async refresh(req: any, res: Response) {
+    const isProd = process.env.NODE_ENV === 'production';
+    const rt = req?.cookies?.['refresh_token']; // читаем из httpOnly куки
+    if (!rt) throw new UnauthorizedException('No refresh token');
+
+    // валидируем подпись refresh
+    let payload: { sub: string };
+    try {
+      payload = await this.tokenService.verifyRefreshToken(rt) as any;
+    } catch {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+    // сверяем с тем, что лежит в БД (простая ротация/проверка)
+    const userDb = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, 
+        email: true, 
+        name: true, 
+        createdAt: true, 
+        updatedAt: true, 
+        refreshToken: true  
+      }, 
+    });
+    if (!userDb) throw new UnauthorizedException('User not found');
+
+     // сверяем refresh c тем, что в базе
+     if (!userDb.refreshToken || userDb.refreshToken !== rt) {
+      throw new UnauthorizedException('Refresh mismatch');
+    }
+    const { accessToken, refreshToken } = await this.tokenService.generateTokens(userDb.id);
+     // ротация refresh в БД
+     await this.prisma.user.update({
+      where: { id: userDb.id },
+      data: { refreshToken },
+    });
+    // перезаписываем куки
     res.cookie('access_token', accessToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'strict',
-      maxAge: 1000 * 60 * 15, // 15 минут
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax',
+      maxAge: 1000 * 60 * 15,
     });
-
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'strict',
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 дней
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax',
+      maxAge: 1000 * 60 * 60 * 24 * 30,
     });
-
-    return {
-      accessToken,
-      refreshToken,
-      user,
-    };
+// 6) готовим «безопасного» юзера под UserOutput
+const userSafe = {
+  id: userDb.id,
+  email: userDb.email,
+  name: userDb.name,
+  createdAt: userDb.createdAt,
+  updatedAt: userDb.updatedAt,
+};
+    return { accessToken, refreshToken, user: userSafe };
+  }
+  async logout(res: Response) {
+    // Удаляем куки
+    res.clearCookie('access_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    });
+    res.clearCookie('refresh_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    });
+    return { message: 'Logged out successfully' };
   }
 }

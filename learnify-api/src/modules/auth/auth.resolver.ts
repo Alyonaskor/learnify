@@ -1,7 +1,7 @@
 import { Resolver, Mutation, Args, Query, Context } from '@nestjs/graphql';
 import { AuthService } from '@/modules/auth/auth.service';
 import { RegisterInput } from './dto/register.input';
-import { UserOutput } from '@/modules/user/user.entity';
+import { UserOutput } from '@/modules/user/user.output';
 import { AuthPayload } from './dto/auth-payload.model';
 import { Response as ExpressResponse } from 'express';
 import { GqlAuthGuard } from  '@/common/guards/gql-auth.guard';
@@ -21,9 +21,9 @@ export class AuthResolver {
   @UseGuards(GqlAuthGuard)
   @Query(() => UserOutput)
   async me(@CurrentUser() user: { userId: string }) {
-    return this.userService.findById(user.userId);
+    return this.userService.findByIdSafe (user.userId);
   }
-  @Mutation(() => AuthPayload)
+  @Mutation(() => AuthResponse)
   async register(
     @Args('data') data: RegisterInput,
     @Context('res')  res: unknown, // для установки cookie
@@ -33,8 +33,14 @@ export class AuthResolver {
   @Mutation(() => AuthResponse)
   async login(
     @Args('input') input: LoginInput,
-    @Context('res')  res: unknown,
-  ) {
-    return this.authService.login(input, res as ExpressResponse);
+    @Context() ctx): Promise<AuthResponse> {
+    return this.authService.login(input, ctx.res);
   }
+    @Mutation(() => AuthResponse)
+  async refresh(
+    @Context() ctx): Promise<AuthResponse> {
+      return this.authService.refresh(ctx.req, ctx.res);
+    }
+   
+  
 }

@@ -7,19 +7,30 @@ import { User } from '@prisma/client';
 export class UserService {
   constructor(private prisma: PrismaService) {}
 
-  async findByEmail(email: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { email } });
+  async findByEmailForAuth(email: string) {
+    return this.prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        password: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
   }
-   /*
-   Return user by ID.
-   If you need "Not found" - you can throw an exception manually,
-   but for now we will return null if not found.
-   */
-   async findById(id: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { id } });
-    /* or:
-    return this.prisma.user.findUniqueOrThrow({ where: { id } });
-    then Nest itself will return 500, you can intercept and transform it.
-    */ 
+
+  async findByIdSafe(id: string) {
+    return this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
   }
 }
