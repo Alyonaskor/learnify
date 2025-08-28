@@ -12,6 +12,16 @@ import { Response } from 'express';
 import { TokenService } from './token.service';
 import { UserService } from '@/modules/user/user.service';
 import { LoginInput } from './dto/login.input';
+import type { GqlContext } from '@/common/gql/gql-context';
+import {
+  setCookie,
+  clearCookie,
+  ACCESS_TOKEN,
+  REFRESH_TOKEN,
+} from '@/common/http/cookies';
+
+const accessTtl = Number(process.env.ACCESS_TOKEN_TTL ?? 60 * 15);
+const refreshTtl = Number(process.env.REFRESH_TOKEN_TTL ?? 60 * 60 * 24 * 30);
 
 @Injectable()
 export class AuthService {
@@ -56,19 +66,8 @@ export class AuthService {
       data: { refreshToken },
     });
       // Устанавливаем токен в cookie
-      const isProd = process.env.NODE_ENV === 'production';
-      res.cookie('access_token', accessToken, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: isProd ? 'none' : 'lax',
-        maxAge: 1000 * 60 * 15,
-      });
-      res.cookie('refresh_token', refreshToken, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: isProd ? 'none' : 'lax',
-        maxAge: 1000 * 60 * 60 * 24 * 30,
-      });
+      setCookie(res, ACCESS_TOKEN, accessToken, accessTtl);
+      setCookie(res, REFRESH_TOKEN, refreshToken, refreshTtl);
       return { accessToken, refreshToken, user };
     } catch (e) {
       // uniqueness race
@@ -83,10 +82,10 @@ export class AuthService {
   /*LOGIN*/
   async login(input: LoginInput, res: Response) {
     const user = await this.usersService.findByEmailForAuth(input.email);
-    if (!user) throw new UnauthorizedException('Неверный логин или пароль');
+    if (!user) throw new UnauthorizedException('Incorrect login or password');
 
     const valid = await argon2.verify(user.password, input.password);
-    if (!valid) throw new UnauthorizedException('Неверный логин или пароль');
+    if (!valid) throw new UnauthorizedException('Incorrect login or password');
 
     const { accessToken, refreshToken } =
       await this.tokenService.generateTokens(user.id);
@@ -98,19 +97,8 @@ export class AuthService {
     });
 
     // Устанавливаем httpOnly куки
-    const isProd = process.env.NODE_ENV === 'production';
-  res.cookie('access_token', accessToken, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? 'none' : 'lax',
-    maxAge: 1000 * 60 * 15,
-  });
-  res.cookie('refresh_token', refreshToken, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? 'none' : 'lax',
-    maxAge: 1000 * 60 * 60 * 24 * 30,
-  });
+    setCookie(res, ACCESS_TOKEN, accessToken, accessTtl);
+    setCookie(res, REFRESH_TOKEN, refreshToken, refreshTtl);
 
     const safeUser = {
       id: user.id,
@@ -125,8 +113,7 @@ export class AuthService {
 
   /*REFRESH*/
   async refresh(req: any, res: Response) {
-    const isProd = process.env.NODE_ENV === 'production';
-    const rt = req?.cookies?.['refresh_token']; // читаем из httpOnly куки
+    const rt = req?.cookies?.[REFRESH_TOKEN]; // читаем из httpOnly куки
     if (!rt) throw new UnauthorizedException('No refresh token');
 
     // валидируем подпись refresh
@@ -160,18 +147,8 @@ export class AuthService {
       data: { refreshToken },
     });
     // перезаписываем куки
-    res.cookie('access_token', accessToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
-      maxAge: 1000 * 60 * 15,
-    });
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
-      maxAge: 1000 * 60 * 60 * 24 * 30,
-    });
+    setCookie(res, ACCESS_TOKEN, accessToken, accessTtl);
+    setCookie(res, REFRESH_TOKEN, refreshToken, refreshTtl);
 // 6) готовим «безопасного» юзера под UserOutput
 const userSafe = {
   id: userDb.id,
@@ -182,18 +159,11 @@ const userSafe = {
 };
     return { accessToken, refreshToken, user: userSafe };
   }
-  async logout(res: Response) {
-    // Удаляем куки
-    res.clearCookie('access_token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    });
-    res.clearCookie('refresh_token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    });
-    return { message: 'Logged out successfully' };
+  /*LOGOUT*/
+  //Никаких guard’ов на logout сейчас не ставим — мутация идемпотентная и безопасная. Потом можно повесить GqlAuthGuard.
+  async logout(ctx: GqlContext): Promise<void>  {
+    const { res } = ctx;
+    clearCookie(res, ACCESS_TOKEN);
+    clearCookie(res, REFRESH_TOKEN);
   }
 }
