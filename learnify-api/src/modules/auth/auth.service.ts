@@ -56,15 +56,21 @@ export class AuthService {
       // Check if user already exists
       const user = await this.prisma.user.create({
         data: { email: normalizedEmail, password: hashed, name },
-        select: { id: true, email: true, name: true, createdAt: true, updatedAt: true },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       });
-      const { accessToken, refreshToken } = 
-      await this.tokenService.generateTokens(user.id);
-       // сохраняем refresh в БД
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { refreshToken },
-    });
+      const { accessToken, refreshToken } =
+        await this.tokenService.generateTokens(user.id);
+      // сохраняем refresh в БД
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { refreshToken },
+      });
       // Устанавливаем токен в cookie
       setCookie(res, ACCESS_TOKEN, accessToken, accessTtl);
       setCookie(res, REFRESH_TOKEN, refreshToken, refreshTtl);
@@ -72,7 +78,9 @@ export class AuthService {
     } catch (e) {
       // uniqueness race
       if (
-        e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
         throw new ConflictException('A user with this email already exists');
       }
       throw new InternalServerErrorException('Failed to register user');
@@ -108,7 +116,7 @@ export class AuthService {
       updatedAt: user.updatedAt,
     };
 
-    return { accessToken, refreshToken, user: safeUser};
+    return { accessToken, refreshToken, user: safeUser };
   }
 
   /*REFRESH*/
@@ -119,51 +127,64 @@ export class AuthService {
     // валидируем подпись refresh
     let payload: { sub: string };
     try {
-      payload = await this.tokenService.verifyRefreshToken(rt) as any;
+      payload = (await this.tokenService.verifyRefreshToken(rt)) as any;
     } catch {
       throw new UnauthorizedException('Invalid refresh token');
     }
     // сверяем с тем, что лежит в БД (простая ротация/проверка)
     const userDb = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, 
-        email: true, 
-        name: true, 
-        createdAt: true, 
-        updatedAt: true, 
-        refreshToken: true  
-      }, 
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+        refreshToken: true,
+      },
     });
     if (!userDb) throw new UnauthorizedException('User not found');
 
-     // сверяем refresh c тем, что в базе
-     if (!userDb.refreshToken || userDb.refreshToken !== rt) {
+    // сверяем refresh c тем, что в базе
+    if (!userDb.refreshToken || userDb.refreshToken !== rt) {
       throw new UnauthorizedException('Refresh mismatch');
     }
-    const { accessToken, refreshToken } = await this.tokenService.generateTokens(userDb.id);
-     // ротация refresh в БД
-     await this.prisma.user.update({
+    const { accessToken, refreshToken } =
+      await this.tokenService.generateTokens(userDb.id);
+    // ротация refresh в БД
+    await this.prisma.user.update({
       where: { id: userDb.id },
       data: { refreshToken },
     });
     // перезаписываем куки
     setCookie(res, ACCESS_TOKEN, accessToken, accessTtl);
     setCookie(res, REFRESH_TOKEN, refreshToken, refreshTtl);
-// 6) готовим «безопасного» юзера под UserOutput
-const userSafe = {
-  id: userDb.id,
-  email: userDb.email,
-  name: userDb.name,
-  createdAt: userDb.createdAt,
-  updatedAt: userDb.updatedAt,
-};
+    // 6) готовим «безопасного» юзера под UserOutput
+    const userSafe = {
+      id: userDb.id,
+      email: userDb.email,
+      name: userDb.name,
+      createdAt: userDb.createdAt,
+      updatedAt: userDb.updatedAt,
+    };
     return { accessToken, refreshToken, user: userSafe };
   }
+
   /*LOGOUT*/
   //Никаких guard’ов на logout сейчас не ставим — мутация идемпотентная и безопасная. Потом можно повесить GqlAuthGuard.
-  async logout(ctx: GqlContext): Promise<void>  {
-    const { res } = ctx;
+  async logout(ctx: GqlContext): Promise<void> {
+    const { req, res } = ctx;
     clearCookie(res, ACCESS_TOKEN);
     clearCookie(res, REFRESH_TOKEN);
+    // 2) Если пользователь аутентифицирован — обнуляем refreshToken в БД
+    // (user кладётся в req после JwtStrategy; если logout доступен без guard —
+    // будет просто null → skip)
+    const userId = req.user?.id;
+    if (userId) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { refreshToken: null },
+      });
+    }
   }
 }
