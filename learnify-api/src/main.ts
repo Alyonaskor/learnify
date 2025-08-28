@@ -8,9 +8,14 @@ async function bootstrap() {
        const app = await NestFactory.create(AppModule);
   app.use(cookieParser()); //  cookie-parser to work with cookies
 
+  // Если будешь ставить secure cookies за прокси (Nginx/Heroku/Render) — включи доверие к прокси:
+  // (app as any).set('trust proxy', 1);
+
        // Allow the frontend to access the API
   app.enableCors({
-    origin: "http://localhost:3000", // where Next.js is spinning during dev
+    origin: (process.env.APP_CORS_ORIGIN || 'https://localhost:3000')
+    .split(',')
+    .map(s => s.trim()),
     credentials: true,              // allow to transmit cookies, auth-headers
   });
   app.useGlobalPipes(
