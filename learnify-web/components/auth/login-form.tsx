@@ -12,7 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { FormField } from "@/components/ui/form-field"
 import { useAuth } from "@/context/auth-context"
 import { loginSchema, type LoginFormData } from "@/lib/validations/auth"
-import { LOGIN_MUTATION } from "@/lib/graphql/mutations"
+import { LOGIN_MUTATION } from "@/lib/graphql/auth-mutations"
 import type { LoginMutationResponse } from "@/types/api"
 import { Loader2 } from "lucide-react"
 
@@ -30,9 +30,10 @@ export function LoginForm() {
   })
 
   const [loginMutation] = useMutation<LoginMutationResponse>(LOGIN_MUTATION, {
+    context: { fetchOptions: { credentials: "include" } }, // чтобы куки пришли
     onCompleted: (data) => {
-      const { user, token } = data.login
-      login(user, token)
+      const { user } = data.login
+      login(user)
       router.push("/dashboard")
     },
     onError: (error) => {
@@ -87,7 +88,7 @@ export function LoginForm() {
 
       <Button type="submit" className="w-full" disabled={isSubmitting}>
         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        {isSubmitting ? "Signing in..." : "Sign In"}
+        {isSubmitting ? "Signing in..." : "Log In"}
       </Button>
 
       <div className="text-center">

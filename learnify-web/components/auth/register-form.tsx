@@ -12,7 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { FormField } from "@/components/ui/form-field"
 import { useAuth } from "@/context/auth-context"
 import { registerSchema, type RegisterFormData } from "@/lib/validations/auth"
-import { REGISTER_MUTATION } from "@/lib/graphql/mutations"
+import { REGISTER_MUTATION } from "@/lib/graphql/auth-mutations"
 import type { RegisterMutationResponse } from "@/types/api"
 import { Loader2 } from "lucide-react"
 
@@ -116,7 +116,7 @@ export function RegisterForm() {
         <p className="text-sm text-gray-600">
           Already have an account?{" "}
           <Link href="/login" className="font-medium text-primary hover:text-primary/80 transition-colors">
-            Sign in
+            Log in
           </Link>
         </p>
       </div>

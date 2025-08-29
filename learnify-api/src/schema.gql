@@ -30,6 +30,7 @@ type Mutation {
   register(data: RegisterInput!): AuthResponse!
   login(input: LoginInput!): AuthResponse!
   refresh: AuthResponse!
+  logout: Boolean!
 }
 
 input RegisterInput {

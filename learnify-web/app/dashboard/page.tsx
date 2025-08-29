@@ -3,24 +3,17 @@
 import { useAuth } from "@/context/auth-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { useRouter } from "next/navigation"
 import { useQuery } from "@apollo/client"
-import { ME_QUERY } from "@/lib/graphql/me-query"
+import { ME_QUERY } from "@/lib/graphql/auth-mutations"
 
 
 export default function DashboardPage() {
-  const { user, logout } = useAuth()
-  const router = useRouter()
+  const { user, logout, logoutLoading } = useAuth()
   const { data, loading, error } = useQuery(ME_QUERY);
   if (loading) return <p>Loading...</p>;
   if (error) return <p>Error: {error.message}</p>;
 
   
-
-  const handleLogout = () => {
-    logout()
-    router.push("/login")
-  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -33,8 +26,8 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-700">Welcome, {user?.name}</span>
-              <Button variant="outline" onClick={handleLogout}>
-                Sign Out
+              <Button variant="outline" onClick={logout} disabled={logoutLoading}>
+              {logoutLoading ? "Signing out…" : "Log out"}
               </Button>
             </div>
           </div>

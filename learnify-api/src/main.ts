@@ -13,7 +13,7 @@ async function bootstrap() {
 
        // Allow the frontend to access the API
   app.enableCors({
-    origin: (process.env.APP_CORS_ORIGIN || 'https://localhost:3000')
+    origin: (process.env.APP_CORS_ORIGIN || 'http://localhost:3000')
     .split(',')
     .map(s => s.trim()),
     credentials: true,              // allow to transmit cookies, auth-headers
