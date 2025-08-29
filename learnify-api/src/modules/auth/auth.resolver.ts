@@ -43,7 +43,8 @@ export class AuthResolver {
     }
     // Идемпотентная мутация: всегда true, даже если кук уже нет
   @Mutation(() => Boolean)
-  async logout(@Context() ctx: GqlContext): Promise<boolean> {
+  async logout(
+    @Context() ctx: GqlContext): Promise<boolean> {
     await this.authService.logout(ctx);
     return true;
   }

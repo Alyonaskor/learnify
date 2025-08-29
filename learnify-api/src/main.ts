@@ -1,11 +1,12 @@
-import { NestFactory, } from '@nestjs/core';
+import { NestFactory,} from '@nestjs/core';
 import { AppModule,  } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 
 
 async function bootstrap() {
        const app = await NestFactory.create(AppModule);
+       Logger.overrideLogger(['error', 'warn', 'log', 'debug']);
   app.use(cookieParser()); //  cookie-parser to work with cookies
 
   // Если будешь ставить secure cookies за прокси (Nginx/Heroku/Render) — включи доверие к прокси:

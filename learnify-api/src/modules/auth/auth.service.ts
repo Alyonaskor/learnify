@@ -3,6 +3,7 @@ import {
   ConflictException,
   InternalServerErrorException,
   UnauthorizedException,
+  Logger,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import * as argon2 from 'argon2';
@@ -174,17 +175,26 @@ export class AuthService {
   //Никаких guard’ов на logout сейчас не ставим — мутация идемпотентная и безопасная. Потом можно повесить GqlAuthGuard.
   async logout(ctx: GqlContext): Promise<void> {
     const { req, res } = ctx;
+    const userId = req.user?.id;
+    const rt = req?.cookies?.[REFRESH_TOKEN];
+    // Logger.debug(
+    //   `Logout: userId=${userId ?? 'none'}, hasRT=${Boolean(rt)}`,
+    //   AuthService.name,
+    // );
     clearCookie(res, ACCESS_TOKEN);
     clearCookie(res, REFRESH_TOKEN);
     // 2) Если пользователь аутентифицирован — обнуляем refreshToken в БД
     // (user кладётся в req после JwtStrategy; если logout доступен без guard —
     // будет просто null → skip)
-    const userId = req.user?.id;
-    if (userId) {
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: { refreshToken: null },
-      });
+
+    if (rt) {
+      try {
+        const { sub } = await this.tokenService.verifyRefreshToken(rt);
+        await this.prisma.user.updateMany({
+          where: { id: sub, refreshToken: rt },
+          data: { refreshToken: null },
+        });
+      } catch { /* no-throw: идемпотентность */ }
     }
   }
 }
