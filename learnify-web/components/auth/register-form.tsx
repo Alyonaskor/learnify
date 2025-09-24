@@ -31,8 +31,8 @@ export function RegisterForm() {
 
   const [registerMutation] = useMutation<RegisterMutationResponse>(REGISTER_MUTATION, {
     onCompleted: (data) => {
-      const { user, token } = data.register
-      login(user, token)
+      const { user } = data.register
+      login(user)
       router.push("/dashboard")
     },
     onError: (error) => {
