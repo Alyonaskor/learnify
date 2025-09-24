@@ -1,36 +1,17 @@
-/**
- * AuthContext — централизованное управление состоянием авторизации.
- *
- * Важно:
- * 1. Мы используем cookie-based JWT (httpOnly cookies), поэтому access_token и refresh_token
- *    хранятся только в браузерных куках и недоступны из JavaScript (повышает безопасность от XSS).
- * 2. Токен не сохраняется в localStorage / state на фронтенде — единственный источник правды о пользователе
- *    это бекенд, через GraphQL-запрос `me`.
- * 3. При загрузке приложения `AuthProvider` вызывает `ME_QUERY`, чтобы проверить, авторизован ли пользователь.
- *    - Если куки с access_token валидны → бекенд вернёт данные пользователя → сохраняем в state.
- *    - Если куки отсутствуют или токен недействителен → бекенд вернёт ошибку → user = null.
- * 4. Логаут (`logout`) вызывает соответствующую GraphQL-мутацию, которая удаляет куки на бекенде.
- *    После этого пользователь считается неавторизованным.
- *
- * Преимущества подхода:
- * - Нет токена в localStorage/sessionStorage → меньше поверхность атаки.
- * - Логика авторизации полностью контролируется бекендом.
- * - Простой механизм обновления access_token через refresh_token, если он есть в куках.
- */
-
 "use client";
 
 import type React from "react";
-import { createContext, useContext, useReducer, useEffect } from "react";
+import { createContext, useContext, useReducer, useEffect, useCallback } from "react";
 import type { User, AuthState } from "@/types/auth";
-import { useQuery, useMutation } from "@apollo/client";
-import { ME_QUERY } from "@/lib/graphql/me-query";
-import { LOGOUT_MUTATION } from "@/lib/graphql/mutations";
+import { useQuery, useMutation, useApolloClient } from "@apollo/client";
+import { useRouter } from "next/navigation"; // или next/router, если у тебя pages-router
+import { LOGOUT_MUTATION,  ME_QUERY } from "@/lib/graphql/auth-mutations";
 
 interface AuthContextType extends AuthState {
   login: (user: User) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   setLoading: (loading: boolean) => void;
+  logoutLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -85,51 +66,63 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [state, dispatch] = useReducer(authReducer, initialState);
+  const client = useApolloClient();
+  const router = useRouter();
 
   // Запрос текущего пользователя при монтировании (куки отправляются автоматически)
-  const { loading } = useQuery(ME_QUERY, {
+  //    fetchPolicy: 'network-only' чтобы не брать stale кэш
+  const { loading: meLoading } = useQuery(ME_QUERY, {
     fetchPolicy: "network-only",
     onError: () => {
       dispatch({ type: "INITIALIZE", payload: { user: null } });
     },
     onCompleted: (data) => {
-      if (data?.me) {
-        dispatch({ type: "INITIALIZE", payload: { user: data.me } });
-      }
+        dispatch({ type: "INITIALIZE", payload: { user: data?.me ?? null  } });  
     },
   });
 
-  const [logoutMutation] = useMutation(LOGOUT_MUTATION, {
-    onCompleted: () => {
-      dispatch({ type: "LOGOUT" });
+    // 2) Мутация logout. ВАЖНО: слать куки (credentials: 'include').
+  const [logoutMutation, { loading: logoutLoading }] = useMutation(LOGOUT_MUTATION, {
+    context: { fetchOptions: { credentials: "include" } 
     },
   });
 
-  const login = (user: User) => {
+  const login = useCallback((user: User) => {
     dispatch({ type: "LOGIN", payload: { user } });
-  };
+  }, []);
 
-  const logout = () => {
-    logoutMutation();
-  };
+// 3) Единый выход: вызываем мутацию, очищаем кэш, редиректим.
+const logout = useCallback(async () => {
+  try {
+    await logoutMutation();
+  } catch {
+    // игнор ошибок — logout идемпотентный, всё равно чистим клиент
+  } finally {
+    dispatch({ type: "LOGOUT" });
+    // чистим кэш, чтобы 'me' и другие запросы стали неавторизованными на клиенте
+    await client.clearStore();
+    router.push("/login");
+  }
+}, [logoutMutation, client, router]);
 
-  const setLoading = (loading: boolean) => {
+ const setLoading = useCallback((loading: boolean) => {
     dispatch({ type: "SET_LOADING", payload: loading });
-  };
+  }, []);
 
   const contextValue: AuthContextType = {
     ...state,
     login,
     logout,
     setLoading,
+    logoutLoading,
   };
 
   // Пока идёт первый запрос me — показываем isLoading
   useEffect(() => {
-    if (loading) {
+    if (meLoading) {
       dispatch({ type: "SET_LOADING", payload: true });
     }
-  }, [loading]);
+  }, [meLoading]);
 
   return (
     <AuthContext.Provider value={contextValue}>
@@ -140,7 +133,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;

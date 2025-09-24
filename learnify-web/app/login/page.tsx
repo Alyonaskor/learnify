@@ -17,7 +17,7 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthCard title="Welcome Back" description="Sign in to your Learnify CMS account">
+    <AuthCard title="Welcome Back" description="Log in to your Learnify CMS account">
       <LoginForm />
     </AuthCard>
   )

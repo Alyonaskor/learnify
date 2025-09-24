@@ -6,11 +6,10 @@ import {
   from,
   Observable,
   Operation,
-  FetchResult,
 } from "@apollo/client";
 import { onError } from "@apollo/client/link/error";
 import { createRefreshClient } from "./refresh-client";
-import { REFRESH_TOKENS_MUTATION } from "./graphql/mutations";
+import { REFRESH_TOKENS_MUTATION } from "./graphql/auth-mutations";
 
 
 

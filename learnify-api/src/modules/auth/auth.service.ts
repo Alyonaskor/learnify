@@ -3,6 +3,7 @@ import {
   ConflictException,
   InternalServerErrorException,
   UnauthorizedException,
+  Logger,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import * as argon2 from 'argon2';
@@ -12,6 +13,16 @@ import { Response } from 'express';
 import { TokenService } from './token.service';
 import { UserService } from '@/modules/user/user.service';
 import { LoginInput } from './dto/login.input';
+import type { GqlContext } from '@/common/gql/gql-context';
+import {
+  setCookie,
+  clearCookie,
+  ACCESS_TOKEN,
+  REFRESH_TOKEN,
+} from '@/common/http/cookies';
+
+const accessTtl = Number(process.env.ACCESS_TOKEN_TTL ?? 60 * 15);
+const refreshTtl = Number(process.env.REFRESH_TOKEN_TTL ?? 60 * 60 * 24 * 30);
 
 @Injectable()
 export class AuthService {
@@ -46,34 +57,31 @@ export class AuthService {
       // Check if user already exists
       const user = await this.prisma.user.create({
         data: { email: normalizedEmail, password: hashed, name },
-        select: { id: true, email: true, name: true, createdAt: true, updatedAt: true },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       });
-      const { accessToken, refreshToken } = 
-      await this.tokenService.generateTokens(user.id);
-       // сохраняем refresh в БД
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { refreshToken },
-    });
+      const { accessToken, refreshToken } =
+        await this.tokenService.generateTokens(user.id);
+      // сохраняем refresh в БД
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { refreshToken },
+      });
       // Устанавливаем токен в cookie
-      const isProd = process.env.NODE_ENV === 'production';
-      res.cookie('access_token', accessToken, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: isProd ? 'none' : 'lax',
-        maxAge: 1000 * 60 * 15,
-      });
-      res.cookie('refresh_token', refreshToken, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: isProd ? 'none' : 'lax',
-        maxAge: 1000 * 60 * 60 * 24 * 30,
-      });
+      setCookie(res, ACCESS_TOKEN, accessToken, accessTtl);
+      setCookie(res, REFRESH_TOKEN, refreshToken, refreshTtl);
       return { accessToken, refreshToken, user };
     } catch (e) {
       // uniqueness race
       if (
-        e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
         throw new ConflictException('A user with this email already exists');
       }
       throw new InternalServerErrorException('Failed to register user');
@@ -83,10 +91,10 @@ export class AuthService {
   /*LOGIN*/
   async login(input: LoginInput, res: Response) {
     const user = await this.usersService.findByEmailForAuth(input.email);
-    if (!user) throw new UnauthorizedException('Неверный логин или пароль');
+    if (!user) throw new UnauthorizedException('Incorrect login or password');
 
     const valid = await argon2.verify(user.password, input.password);
-    if (!valid) throw new UnauthorizedException('Неверный логин или пароль');
+    if (!valid) throw new UnauthorizedException('Incorrect login or password');
 
     const { accessToken, refreshToken } =
       await this.tokenService.generateTokens(user.id);
@@ -98,19 +106,8 @@ export class AuthService {
     });
 
     // Устанавливаем httpOnly куки
-    const isProd = process.env.NODE_ENV === 'production';
-  res.cookie('access_token', accessToken, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? 'none' : 'lax',
-    maxAge: 1000 * 60 * 15,
-  });
-  res.cookie('refresh_token', refreshToken, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? 'none' : 'lax',
-    maxAge: 1000 * 60 * 60 * 24 * 30,
-  });
+    setCookie(res, ACCESS_TOKEN, accessToken, accessTtl);
+    setCookie(res, REFRESH_TOKEN, refreshToken, refreshTtl);
 
     const safeUser = {
       id: user.id,
@@ -120,80 +117,84 @@ export class AuthService {
       updatedAt: user.updatedAt,
     };
 
-    return { accessToken, refreshToken, user: safeUser};
+    return { accessToken, refreshToken, user: safeUser };
   }
 
   /*REFRESH*/
   async refresh(req: any, res: Response) {
-    const isProd = process.env.NODE_ENV === 'production';
-    const rt = req?.cookies?.['refresh_token']; // читаем из httpOnly куки
+    const rt = req?.cookies?.[REFRESH_TOKEN]; // читаем из httpOnly куки
     if (!rt) throw new UnauthorizedException('No refresh token');
 
     // валидируем подпись refresh
     let payload: { sub: string };
     try {
-      payload = await this.tokenService.verifyRefreshToken(rt) as any;
+      payload = (await this.tokenService.verifyRefreshToken(rt)) as any;
     } catch {
       throw new UnauthorizedException('Invalid refresh token');
     }
     // сверяем с тем, что лежит в БД (простая ротация/проверка)
     const userDb = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, 
-        email: true, 
-        name: true, 
-        createdAt: true, 
-        updatedAt: true, 
-        refreshToken: true  
-      }, 
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+        refreshToken: true,
+      },
     });
     if (!userDb) throw new UnauthorizedException('User not found');
 
-     // сверяем refresh c тем, что в базе
-     if (!userDb.refreshToken || userDb.refreshToken !== rt) {
+    // сверяем refresh c тем, что в базе
+    if (!userDb.refreshToken || userDb.refreshToken !== rt) {
       throw new UnauthorizedException('Refresh mismatch');
     }
-    const { accessToken, refreshToken } = await this.tokenService.generateTokens(userDb.id);
-     // ротация refresh в БД
-     await this.prisma.user.update({
+    const { accessToken, refreshToken } =
+      await this.tokenService.generateTokens(userDb.id);
+    // ротация refresh в БД
+    await this.prisma.user.update({
       where: { id: userDb.id },
       data: { refreshToken },
     });
     // перезаписываем куки
-    res.cookie('access_token', accessToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
-      maxAge: 1000 * 60 * 15,
-    });
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
-      maxAge: 1000 * 60 * 60 * 24 * 30,
-    });
-// 6) готовим «безопасного» юзера под UserOutput
-const userSafe = {
-  id: userDb.id,
-  email: userDb.email,
-  name: userDb.name,
-  createdAt: userDb.createdAt,
-  updatedAt: userDb.updatedAt,
-};
+    setCookie(res, ACCESS_TOKEN, accessToken, accessTtl);
+    setCookie(res, REFRESH_TOKEN, refreshToken, refreshTtl);
+    // 6) готовим «безопасного» юзера под UserOutput
+    const userSafe = {
+      id: userDb.id,
+      email: userDb.email,
+      name: userDb.name,
+      createdAt: userDb.createdAt,
+      updatedAt: userDb.updatedAt,
+    };
     return { accessToken, refreshToken, user: userSafe };
   }
-  async logout(res: Response) {
-    // Удаляем куки
-    res.clearCookie('access_token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    });
-    res.clearCookie('refresh_token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    });
-    return { message: 'Logged out successfully' };
+
+  /*LOGOUT*/
+  //Никаких guard’ов на logout сейчас не ставим — мутация идемпотентная и безопасная. Потом можно повесить GqlAuthGuard.
+  async logout(ctx: GqlContext): Promise<void> {
+    const { req, res } = ctx;
+    const userId = req.user?.id;
+    const rt = req?.cookies?.[REFRESH_TOKEN];
+    // Logger.debug(
+    //   `Logout: userId=${userId ?? 'none'}, hasRT=${Boolean(rt)}`,
+    //   AuthService.name,
+    // );
+    clearCookie(res, ACCESS_TOKEN);
+    clearCookie(res, REFRESH_TOKEN);
+    // 2) Если пользователь аутентифицирован — обнуляем refreshToken в БД
+    // (user кладётся в req после JwtStrategy; если logout доступен без guard —
+    // будет просто null → skip)
+
+    if (rt) {
+      try {
+        const { sub } = await this.tokenService.verifyRefreshToken(rt);
+        await this.prisma.user.updateMany({
+          where: { id: sub, refreshToken: rt },
+          data: { refreshToken: null },
+        });
+      } catch { /* no-throw: идемпотентность */ }
+    }
   }
 }
